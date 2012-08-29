@@ -1,0 +1,17 @@
+#!/bin/bash
+SCRIPT_DIR=/home/pktmp
+LOG_FILE=/tmp/match.log
+WATCH_FILE=/home/logs/xr.stdout.1
+MATCH_STR="IndexFileFactory"
+
+mv $WATCH_FILE $SCRIPT_DIR/.
+
+
+while [[ `grep $MATCH_STR $WATCH_FILE` == "" ]]; do
+	echo no match $MATCH_STR >> $LOG_FILE
+done
+
+echo press POWER | nc localhost 8089
+
+
+

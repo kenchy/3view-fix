@@ -1,0 +1,135 @@
+#!/bin/sh
+cd /settings
+export PATH=.:/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/bin
+
+if [ -f uses_opera ] ; then
+    if [ -f opera_env ] ; then
+        source opera_env
+    fi
+fi
+
+# clean up
+
+echo Removing old snapshots...
+rm -rf /home/mpeg/Snapshots/*
+rm -rf /home/mpeg/Thumbnails/127.0.0.1/Snapshots/*
+
+# Reset to factory, if user chose to do so
+if [ -e /settings/reset_to_factory ] ; then
+    rm -f /settings/reset_to_factory
+    /settings/bin/reset_to_factory.sh
+fi
+
+# Convert guidedata files if necessary
+if [ -x /avtrex/bin/convert.sh ] ; then
+    /avtrex/bin/convert.sh
+fi
+
+look=
+if [ -f look.conf ] ; then
+    read look < look.conf
+fi
+baselook=`echo $look | sed -e 's/sim$//'`
+
+if grep 'system type' /proc/cpuinfo | grep -q Sigma ; then
+	:
+else
+	adjustclock
+fi
+
+prepdemo
+
+#######################################
+
+# if logoutput exists, configure save old output files & 
+# set up new output files
+
+xr_log=/home/logs/xr.stdout
+demo_log=/home/logs/demo.stdout
+
+#######################################
+
+# echo Starting remote file servers...
+# remote_file > $rf_log 2>&1 &
+# remote_file 2000 > $rf2_log 2>&1 &
+
+if [ "$look" = "$baselook" ] ; then
+	export SIM=0
+else
+	export SIM=1
+fi
+
+backend_file=`cat /settings/xr`
+
+WAIT_FILE=/home/pktmp/xr_wait
+#touch $WAIT_FILE
+
+if [[ -f $WAIT_FILE ]]; then
+	/home/pktmp/stop_lock &
+        sleep 5
+fi
+                
+
+if grep -q waitForSem demo; then
+
+	echo Starting demo...
+	if [ ! -e /settings/avtrex_monitor_disable ] && [ -x /avtrex/bin/avtrex_monitor ] ; then
+		/avtrex/bin/avtrex_monitor -script /avtrex/bin/avtrex_monitor_finalize -logfile $demo_log /settings/demo &
+	else
+		if [ -e /settings/logoutput ] ; then
+			mv -f $demo_log ${demo_log}.1
+			demo > $demo_log 2>&1 &
+		else
+			demo > /dev/null 2>&1 &
+		fi
+	fi
+	echo Demo started
+
+	sleep 2
+
+	echo Starting remote video...
+	cd /avtrex/bin
+	if [ ! -e /settings/avtrex_monitor_disable ] && [ -x /avtrex/bin/avtrex_monitor ] ; then
+		/avtrex/bin/avtrex_monitor -script /avtrex/bin/avtrex_monitor_finalize -logfile $xr_log $backend_file &
+	else
+		if [ -e /settings/logoutput ] ; then
+			mv -f $xr_log ${xr_log}.1
+			$backend_file > $xr_log 2>&1 &
+		else
+			$backend_file > /dev/null 2>&1 &
+		fi
+	fi
+	echo Remote video started
+
+else
+
+	echo Starting remote video...
+	cd /avtrex/bin
+	if [ ! -e /settings/avtrex_monitor_disable ] && [ -x /avtrex/bin/avtrex_monitor ] ; then
+		/avtrex/bin/avtrex_monitor -script /avtrex/bin/avtrex_monitor_finalize -logfile $xr_log $backend_file &
+	else
+		if [ -e /settings/logoutput ] ; then
+			mv -f $xr_log ${xr_log}.1
+			$backend_file > $xr_log 2>&1 &
+		else
+			$backend_file > /dev/null 2>&1 &
+		fi
+	fi
+	echo Remote video started
+
+	sleep 35
+	echo Starting demo...
+	if [ ! -e /settings/avtrex_monitor_disable ] && [ -x /avtrex/bin/avtrex_monitor ] ; then
+		/avtrex/bin/avtrex_monitor -script /avtrex/bin/avtrex_monitor_finalize -logfile $demo_log /settings/demo &
+	else
+		if [ -e /settings/logoutput ] ; then
+			mv -f $demo_log ${demo_log}.1
+			demo > $demo_log 2>&1 &
+		else
+			demo > /dev/null 2>&1 &
+		fi
+	fi
+	echo Demo started
+
+fi
+
